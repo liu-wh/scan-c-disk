@@ -3,7 +3,7 @@ import { Treemap } from "@ant-design/plots";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
-const scanRequest = { root: "C:\\", max_depth: 5 };
+const scanRequest = { root: "C:\\", max_depth: 6 };
 
 function formatSize(bytes = 0) {
   const normalizedBytes = Number.isFinite(Number(bytes)) ? Number(bytes) : 0;
@@ -19,7 +19,17 @@ function formatSize(bytes = 0) {
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
 }
 
-function normalizeNode(node, fallbackName = "未命名") {
+const treemapNameReplacements = new Map([
+  [".", "．"], ["*", "＊"], ["+", "＋"], ["?", "？"], ["^", "＾"],
+  ["$", "＄"], ["{", "｛"], ["}", "｝"], ["(", "（"], [")", "）"],
+  ["[", "［"], ["]", "］"], ["|", "｜"], ["\\", "＼"],
+]);
+
+function safeTreemapName(name) {
+  return Array.from(name, (character) => treemapNameReplacements.get(character) || character).join("");
+}
+
+function normalizeNode(node, fallbackName = "未命名", isRoot = false) {
   if (!node || typeof node !== "object") {
     return { name: fallbackName, value: 0 };
   }
@@ -28,10 +38,15 @@ function normalizeNode(node, fallbackName = "未命名") {
   const children = Array.isArray(node.children)
     ? node.children.map((child) => normalizeNode(child, "未命名"))
     : [];
+  const rawName = typeof node.name === "string" && node.name.length > 0 ? node.name : fallbackName;
+  const label = isRoot && rawName.length === 3 && rawName[1] === ":" && rawName[2] === "\\"
+    ? rawName[0]
+    : rawName;
 
   return {
     ...node,
-    name: typeof node.name === "string" && node.name.length > 0 ? node.name : fallbackName,
+    name: safeTreemapName(label),
+    label,
     value: Number.isFinite(value) && value >= 0 ? value : 0,
     ...(children.length > 0 ? { children } : {}),
   };
@@ -103,7 +118,8 @@ function App() {
     setError("");
     try {
       const result = await invoke("scan_disk", { request: scanRequest });
-      setData(uniqueTreeNodeNames(normalizeNode(result, scanRequest.root)));
+      const normalizedData = uniqueTreeNodeNames(normalizeNode(result, scanRequest.root, true));
+      setData(normalizedData);
       setStatus("complete");
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : String(scanError));
@@ -111,24 +127,26 @@ function App() {
     }
   }
   const stats = useMemo(() => (data ? getStats(data) : null), [data]);
-  const chartConfig = useMemo(() => ({
-    encode: { value: "value" },
-    interaction: { treemapDrillDown: { breadCrumbY: 12, activeFill: "#873bf4" } },
-    legend: { color: { position: "bottom" } },
-    tooltip: {
-      title: (datum) => displayName(datum?.path?.[datum.path.length - 1] || datum?.name),
-      items: [(datum) => {
-        const value = Number(datum?.value) || 0;
-        const parentValue = Number(datum?.parent?.value) || 0;
-        const percentage = parentValue ? ((value / parentValue) * 100).toFixed(2) : "0.00";
+  const treeConfig = useMemo(() => (
+      {    encode: { value: 'value' },
+        interaction: { treemapDrillDown: { breadCrumbY: 12, activeFill: '#873bf4' } },
+        legend: { color: { position: 'bottom' } },
+          tooltip: {
+              title: (datum) => displayName(datum.path?.[datum.path.length - 1] || datum.name),
+              items: [(datum) => {
+                  const value = Number(datum.value) || 0;
+                  const parentValue = Number(datum.parent?.value) || 0;
+                  const percentage = parentValue ? ((value / parentValue) * 100).toFixed(2) : '0.00';
 
-        return {
-          name: "占用空间",
-          value: `${value.toLocaleString()} (${percentage}%)`,
-        };
-      }],
-    },
-  }), []);
+                  return {
+                      name: '大小',
+                      value: `${formatSize(value)} (${percentage}%)`,
+                  };
+              }],
+          },
+ }
+  ), []);
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -142,10 +160,10 @@ function App() {
       <section className={`hero ${status === "complete" ? "hero-compact" : ""}`}>
         <div className="hero-copy">
           <span className="eyebrow">DISK INSIGHT</span>
-          <h1>{status === "complete" ? "C 盘空间概览" : "看清每一份空间的去向"}</h1>
+          <h1>{status === "complete" ? "C 盘空间概览" : "快速分析C盘空间"}</h1>
           <p>
             {status === "complete"
-              ? "通过可视化图表快速定位占用空间较大的目录。点击色块可以深入查看。"
+              ? "通过可视化图表快速定位占用空间较大的目录。已排除 C:\\windows\\winsxs 和 C:\\programdata\\microsoft\\windows\\wer。"
               : "扫描 C 盘目录并生成直观的空间分布图，帮助你轻松管理存储空间。"}
           </p>
           {status !== "complete" && (
@@ -187,7 +205,7 @@ function App() {
             </div>
             <div className="stat-card">
               <span className="stat-label">占用空间</span>
-              <strong>{formatSize(data.value)}</strong>
+              <strong>{data.size}</strong>
             </div>
             <div className="stat-card">
               <span className="stat-label">目录数量</span>
@@ -202,7 +220,7 @@ function App() {
               </div>
               <button className="secondary-button" onClick={startScan}>重新扫描</button>
             </div>
-            <Treemap {...chartConfig} data={data} />
+            {data ? <Treemap {...treeConfig} data={data} /> : false}
           </div>
         </section>
       )}

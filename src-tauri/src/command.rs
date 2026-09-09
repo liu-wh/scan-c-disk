@@ -28,11 +28,22 @@ pub struct Node {
     pub size: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<Node>>,
+    #[serde(skip)]
+    total_size: u64,
 }
 
 impl Node {
-    fn new(name: String, value: Option<u64>, children: Option<Vec<Node>>) -> Self {
-        Self { name, size: value.map(human_readable), value, children }
+    fn root(name: String, size: u64, children: Option<Vec<Node>>) -> Self {
+        Self { name, size: Some(human_readable(size)), value: None, children, total_size: size }
+    }
+
+    fn without_size(
+        name: String,
+        value: Option<u64>,
+        children: Option<Vec<Node>>,
+        total_size: u64,
+    ) -> Self {
+        Self { name, size: None, value, children, total_size }
     }
 }
 
@@ -72,11 +83,25 @@ async fn build_node_with_depth(path: &Path, level: usize, max_depth: usize) -> N
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string_lossy().to_string());
     if level >= max_depth {
-        return Node::new(name, Some(full_size(path).await), None);
+        let value = Some(full_size(path).await);
+        return if level == 1 {
+            Node::root(name, value.unwrap_or(0), None)
+        } else {
+            let total = value.unwrap_or(0);
+            Node::without_size(name, value, None, total)
+        };
     }
     let mut rd = match fs::read_dir(path).await {
         Ok(rd) => rd,
-        Err(_) => return Node::new(name, Some(full_size(path).await), None),
+        Err(_) => {
+            let value = Some(full_size(path).await);
+            return if level == 1 {
+                Node::root(name, value.unwrap_or(0), None)
+            } else {
+                let total = value.unwrap_or(0);
+                Node::without_size(name, value, None, total)
+            };
+        }
     };
     let mut loose_files: u64 = 0;
     let mut subdirs: Vec<std::path::PathBuf> = Vec::new();
@@ -90,9 +115,21 @@ async fn build_node_with_depth(path: &Path, level: usize, max_depth: usize) -> N
     let mut children: Vec<Node> = join_all(
         subdirs.iter().map(|d| build_node_with_depth(d, level + 1, max_depth))
     ).await;
-    children.sort_by(|a, b| b.value.unwrap_or(0).cmp(&a.value.unwrap_or(0)));
-    let total = loose_files + children.iter().map(|c| c.value.unwrap_or(0)).sum::<u64>();
-    Node::new(name, Some(total), if children.is_empty() { None } else { Some(children) })
+    children.sort_by(|a, b| b.total_size.cmp(&a.total_size));
+    let total = loose_files + children.iter().map(|c| c.total_size).sum::<u64>();
+    if children.is_empty() {
+        if level == 1 {
+            Node::root(name, total, None)
+        } else {
+            Node::without_size(name, Some(total), None, total)
+        }
+    } else {
+        if level == 1 {
+            Node::root(name, total, Some(children))
+        } else {
+            Node::without_size(name, None, Some(children), total)
+        }
+    }
 }
 
 // ✅ scan_disk 只在这里定义一次
