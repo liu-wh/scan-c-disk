@@ -45,7 +45,7 @@ h1 { max-width: 560px; margin: 14px 0 18px; color: #172b4d; font-size: clamp(36p
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-card h2, .card-heading h2 { margin: 0; color: #1b3155; font-size: 17px; }
 .loading-card p, .card-heading p { margin: 5px 0 0; color: #91a0b5; font-size: 13px; }
-.stats-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+.stats-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; }
 .stat-card { padding: 19px 23px; border: 1px solid #e2ebf5; border-radius: 14px; background: #fff; }
 .stat-label { display: block; margin-bottom: 7px; color: #91a0b5; font-size: 12px; }.stat-card strong { color: #1b3155; font-size: 20px; }
 .chart-card { padding: 29px 30px 16px; border: 1px solid #e2ebf5; border-radius: 18px; background: #fff; box-shadow: 0 12px 35px #34547c0b; }

@@ -19,6 +19,14 @@ function formatSize(bytes = 0) {
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
 }
 
+function formatDuration(ms = 0) {
+  const totalSeconds = Number.isFinite(Number(ms)) ? Number(ms) / 1000 : 0;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)} 秒`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  return `${minutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
+}
+
 const treemapNameReplacements = new Map([
   [".", "．"], ["*", "＊"], ["+", "＋"], ["?", "？"], ["^", "＾"],
   ["$", "＄"], ["{", "｛"], ["}", "｝"], ["(", "（"], [")", "）"],
@@ -112,12 +120,15 @@ function App() {
   const [status, setStatus] = useState("idle");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [durationMs, setDurationMs] = useState(0);
 
   async function startScan() {
     setStatus("scanning");
     setError("");
+    const startedAt = performance.now();
     try {
       const result = await invoke("scan_disk", { request: scanRequest });
+      setDurationMs(performance.now() - startedAt);
       const normalizedData = uniqueTreeNodeNames(normalizeNode(result, scanRequest.root, true));
       setData(normalizedData);
       setStatus("complete");
@@ -233,6 +244,10 @@ function App() {
             <div className="stat-card">
               <span className="stat-label">目录数量</span>
               <strong>{stats.folders.toLocaleString()}</strong>
+            </div>
+            <div className="stat-card">
+              <span className="stat-label">扫描耗时</span>
+              <strong>{formatDuration(durationMs)}</strong>
             </div>
           </div>
           <div className="chart-card">
