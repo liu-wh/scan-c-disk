@@ -132,7 +132,6 @@ async fn build_node_with_depth(path: &Path, level: usize, max_depth: usize) -> N
     }
 }
 
-// ✅ scan_disk 只在这里定义一次
 #[tauri::command]
 pub async fn scan_disk(request: ScanRequest) -> Result<Node, String> {
     let root_path = Path::new(&request.root);

@@ -129,6 +129,29 @@ function App() {
   const stats = useMemo(() => (data ? getStats(data) : null), [data]);
   const treeConfig = useMemo(() => (
       {    encode: { value: 'value' },
+        style: { labelFill: 'transparent' },
+        labels: [{
+          text: (datum) => datum.data?.label
+            || datum.path?.[datum.path.length - 1]
+            || datum.name
+            || "-",
+          position: 'inside',
+          style: {
+            fill: '#fff4c2',
+            fontSize: 14,
+            fontWeight: 600,
+            textAlign: 'center',
+            textBaseline: 'middle',
+            dx: 0,
+            dy: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.35)',
+            shadowBlur: 3,
+            wordWrap: true,
+            wordWrapWidth: (datum) => Math.max(datum.x1 - datum.x0 - 18, 40),
+            maxLines: 1,
+            textOverflow: 'ellipsis',
+          },
+        }],
         interaction: { treemapDrillDown: { breadCrumbY: 12, activeFill: '#873bf4' } },
         legend: { color: { position: 'bottom' } },
           tooltip: {
@@ -216,7 +239,7 @@ function App() {
             <div className="card-heading">
               <div>
                 <h2>空间分布</h2>
-                <p>色块面积代表目录占用空间大小</p>
+                <p>色块面积代表目录占用空间大小, 点击可以进入</p>
               </div>
               <button className="secondary-button" onClick={startScan}>重新扫描</button>
             </div>
